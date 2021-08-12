@@ -1,10 +1,9 @@
-import torchvision.transforms as transforms
-from torchvision.datasets import ImageFolder ,DatasetFolder
+
 from torch.utils.data import ConcatDataset, DataLoader, Subset,Dataset
 import torch
 from tqdm.auto import tqdm
 
-class WgTrain:
+class DeeplearnTrain:
     def __init__(self,model,trainSet,validSet,opt=None,lossFunc=None,batchSize=56,epochs=100) -> None:
         self.model,self.opt,self.lossFunc,self.batchSize,self.epochs = model,opt,lossFunc,batchSize,epochs
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -13,12 +12,12 @@ class WgTrain:
         self.trainLoader = DataLoader(self.trainSet,batch_size=self.batchSize,shuffle=True,num_workers=8, pin_memory=self.pm)
         self.validLoader = DataLoader(self.validSet,batch_size=self.batchSize,shuffle=True,num_workers=8, pin_memory=self.pm)
         self.trainLossList ,self.trainAccList,self.validLossList,self.validAccList = [],[],[],[]
-        self.bastAcc = 0.5
+        self.bestAcc = 0.5
        
     class CustomSubset(Dataset):
         #自定义DataSet,用于半监督学习未标签的图片，在训练后生成伪标签后组成数据集
-        def __init__(self, dataset, indices, labels):
-            self.dataset = torch.utils.data.Subset(dataset, indices)
+        def __init__(self, dataset,  labels):
+            self.dataset = dataset
             self.targets = labels
         def __getitem__(self, idx):
             image = self.dataset[idx][0]
@@ -43,19 +42,20 @@ class WgTrain:
             probs = softmax(logits)
             # ---------- TODO ----------
             for prob in probs:
-                if   max(prob) > threshold:
+                print(torch.max(prob))
+                if   torch.max(prob) > threshold:
                     chioce.append(count)
                     labels.append(torch.argmax(prob))                
                 count +=1
 
         subDataSet = Subset(unlabelSet,chioce)
-        dataset = WgTrain.CustomSubset(subDataSet,labels)   
+        dataset = DeeplearnTrain.CustomSubset(dataset=subDataSet,indices=chioce,labels=labels)    
         return dataset
 
     def train(self,doSemi=False, unlabelSet=None): 
         for epoch in  tqdm(range(self.epochs)):    
             if doSemi:
-                pseudoSet = self.getPseudoLabels(unlabelSet,self.model)
+                pseudoSet = self.getPseudoLabels(unlabelSet)
                 concatSet = ConcatDataset([self.trainSet,pseudoSet])
                 self.trainLoader = DataLoader(concatSet,batch_size=self.batchSize,shuffle=True,num_workers=8,pin_memory=self.pm)
 
@@ -99,3 +99,4 @@ class WgTrain:
             if validAcc > self.bestAcc:
                 self.bestAcc = validAcc
                 torch.save(self.model.state_dict(),"./bestAcc.ckpt")     
+
