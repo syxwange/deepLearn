@@ -95,7 +95,7 @@ class myVgg(torch.nn.Module):
 vgg = myVgg().to(device)
 opt = torch.optim.Adam(vgg.parameters(),lr=0.001)
 lossFunc = torch.nn.CrossEntropyLoss()
-
+sch = torch.optim.lr_scheduler.StepLR(opt,step_size=10,gamma=0.5)
 train = DeeplearnTrain(model=vgg,trainSet=trainSet,validSet=validSet,opt=opt,lossFunc=lossFunc,batchSize=128,epochs=50)
 #train.train(doSemi=True,unlabelSet= unlabelSet)
 if __name__=="__main__":

@@ -9,10 +9,11 @@ class DeeplearnTrain:
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.trainSet ,self.validSet= trainSet,validSet
         self.pm = True if self.device=="cuda:0" else False   #如果是GPU 把图片加入到CUDA中的固定内存
-        self.trainLoader = DataLoader(self.trainSet,batch_size=self.batchSize,shuffle=True,num_workers=8, pin_memory=self.pm)
-        self.validLoader = DataLoader(self.validSet,batch_size=self.batchSize,shuffle=True,num_workers=8, pin_memory=self.pm)
+        self.trainLoader = DataLoader(self.trainSet,batch_size=self.batchSize,shuffle=True,num_workers=4, pin_memory=self.pm)
+        self.validLoader = DataLoader(self.validSet,batch_size=self.batchSize,shuffle=True,num_workers=4, pin_memory=self.pm)
         self.trainLossList ,self.trainAccList,self.validLossList,self.validAccList = [],[],[],[]
         self.bestAcc = 0.5
+        self.schLr = torch.optim.lr_scheduler.StepLR(self.opt,step_size=10,gamma=0.6)
        
     class CustomSubset(Dataset):
         #自定义DataSet,用于半监督学习未标签的图片，在训练后生成伪标签后组成数据集
@@ -27,7 +28,7 @@ class DeeplearnTrain:
         def __len__(self):
             return len(self.targets)
             
-    def getPseudoLabels(self, unlabelSet,threshold=0.65):
+    def getPseudoLabels(self, unlabelSet,threshold=0.75):
     # 此函数使用给定的模型生成数据集的伪标签
     # 它返回一个DatasetFolder实例，其中包含预测可信度超过给定阈值的图像    
         data_loader = DataLoader(unlabelSet, batch_size=self.batchSize, shuffle=False) 
@@ -41,21 +42,20 @@ class DeeplearnTrain:
             # Obtain the probability distributions by applying softmax on logits.
             probs = softmax(logits)
             # ---------- TODO ----------
-            for prob in probs:
-                print(torch.max(prob))
+            for prob in probs:                
                 if   torch.max(prob) > threshold:
                     chioce.append(count)
-                    labels.append(torch.argmax(prob))                
+                    labels.append(torch.argmax(prob).item())                
                 count +=1
 
         subDataSet = Subset(unlabelSet,chioce)
-        dataset = DeeplearnTrain.CustomSubset(dataset=subDataSet,indices=chioce,labels=labels)    
+        dataset = DeeplearnTrain.CustomSubset(dataset=subDataSet,labels=labels)    
         return dataset
 
-    def train(self,doSemi=False, unlabelSet=None): 
+    def train(self,doSemi=False, unlabelSet=None,threshold=0.6): 
         for epoch in  tqdm(range(self.epochs)):    
             if doSemi:
-                pseudoSet = self.getPseudoLabels(unlabelSet)
+                pseudoSet = self.getPseudoLabels(unlabelSet,threshold)
                 concatSet = ConcatDataset([self.trainSet,pseudoSet])
                 self.trainLoader = DataLoader(concatSet,batch_size=self.batchSize,shuffle=True,num_workers=8,pin_memory=self.pm)
 
@@ -91,6 +91,8 @@ class DeeplearnTrain:
             validLoss ,validAcc= sum(validLoss)/len(validLoss),sum(validAcc)/len(validAcc)     
             self.validLossList.append(validLoss)
             self.validAccList.append(validAcc)
+            
+            self.schLr.step()
 
             if epoch%5==0:
                 print(f"Train--epoch:{epoch}/{self.epochs}--loss={trainLoss:.5f}--acc={trainAcc:.5f}")
