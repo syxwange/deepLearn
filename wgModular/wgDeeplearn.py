@@ -64,12 +64,14 @@ class DeeplearnTrain:
             for imgs,labels in self.trainLoader:
                 ret = self.model(imgs.to(self.device))
                 loss = self.lossFunc(ret,labels.to(self.device))
-                self.opt.zero_grad()
+               
                 loss.backward()
                 #?梯度减切Gradient Clip设置一个梯度减切的阈值，如果在更新梯度的时候，
                 #? 梯度超过这个阈值，则会将其限制在这个范围之内，防止梯度爆炸。
                 gradNorm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
                 self.opt.step()
+                self.opt.zero_grad()
+                self.schLr.step()
                 acc = (torch.argmax(ret,dim=1)==labels.to(self.device)).float().mean()
                 trainLoss.append(loss)
                 trainAcc.append(acc)
@@ -92,7 +94,7 @@ class DeeplearnTrain:
             self.validLossList.append(validLoss)
             self.validAccList.append(validAcc)
             
-            self.schLr.step()
+            
 
             if epoch%5==0:
                 print(f"Train--epoch:{epoch}/{self.epochs}--loss={trainLoss:.5f}--acc={trainAcc:.5f}")
