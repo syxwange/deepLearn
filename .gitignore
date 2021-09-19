@@ -1,5 +1,7 @@
 data
-checkPoints
+checkpoints
 pytorch-CycleGAN-and-pix2pix
 images
 logs
+src/img
+src/gan/MNIST
