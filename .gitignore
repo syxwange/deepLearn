@@ -5,3 +5,4 @@ images
 logs
 src/img
 src/gan/MNIST
+src/gan/checkPoint
